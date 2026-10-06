@@ -14,7 +14,7 @@ def aftCounter(affinity, aftlist):
 
 
 # ============================================================
-# 1. 读取全部 CTCF sites
+# 1. Read all CTCF sites
 # ============================================================
 
 ctcf_sites = {}
@@ -31,8 +31,8 @@ for eachLine in open(
         l = each[4]
         start = int(each[2])
 
-        # 保持原代码不变：
-        # 41-bp sequence 的 start + 1
+        
+        # 41-bp sequence:  start + 1
         if l == '41':
             start += 1
 
@@ -56,10 +56,10 @@ for eachLine in open(
 
 
 # ============================================================
-# 2. 初始化
+# 2. Initialize
 # ============================================================
 
-# 四个 loop-strength groups:
+# 4 loop-strength groups:
 # 200, 300, 400, >=500
 n_affinity = [
     [0, 0, 0],
@@ -68,7 +68,7 @@ n_affinity = [
     [0, 0, 0]
 ]
 
-# 记录各 affinity class 中参与过 loop 的 unique CBS
+# Record the unique CBS that participated in loops in each affinity class
 a1 = {}
 a2 = {}
 a3 = {}
@@ -83,7 +83,7 @@ loopS = [0, 0, 0, 0, 0]
 
 
 # ============================================================
-# 3. 扫描 ChIA-PET loops
+# 3. Scan ChIA-PET loops
 # ============================================================
 
 for eachLine in open('wgEncodeGisChiaPetK562CtcfInteractionsRep1_filter.bed'):
@@ -104,15 +104,11 @@ for eachLine in open('wgEncodeGisChiaPetK562CtcfInteractionsRep1_filter.bed'):
 
     loopstrength = int(each[4])
 
-    # 保持原算法：
-    # 所有 >=500 的 loop 都归为 500 组
+    # All loops >=500 are grouped into the 500 category
     if loopstrength >= 500:
         loopstrength = 500
 
     loop_group = loopstrength // 100 - 2
-
-    # 原代码在判断 intra-chromosomal 之前就统计 loopS
-    # 这里保持完全一致
     loopS[loop_group] += 1
 
     if chromR != chromL:
@@ -120,7 +116,7 @@ for eachLine in open('wgEncodeGisChiaPetK562CtcfInteractionsRep1_filter.bed'):
 
 
     # --------------------------------------------------------
-    # 左 anchor：只保留 + strand CBS
+    # Left anchor: keep only strand CBS
     # --------------------------------------------------------
 
     for i in range(endL - startL):
@@ -134,7 +130,7 @@ for eachLine in open('wgEncodeGisChiaPetK562CtcfInteractionsRep1_filter.bed'):
             score = ctcf_sites[key][2]
             direction = ctcf_sites[key][4]
 
-            # 原代码：左 anchor 排除 -
+           
             if direction == '-':
                 continue
 
@@ -157,7 +153,7 @@ for eachLine in open('wgEncodeGisChiaPetK562CtcfInteractionsRep1_filter.bed'):
 
 
     # --------------------------------------------------------
-    # 右 anchor：只保留 - strand CBS
+    # Right anchor: keep only - strand CBS
     # --------------------------------------------------------
 
     for i in range(endR - startR):
@@ -171,7 +167,6 @@ for eachLine in open('wgEncodeGisChiaPetK562CtcfInteractionsRep1_filter.bed'):
             score = ctcf_sites[key][2]
             direction = ctcf_sites[key][4]
 
-            # 原代码：右 anchor 排除 +
             if direction == '+':
                 continue
 
@@ -187,14 +182,13 @@ for eachLine in open('wgEncodeGisChiaPetK562CtcfInteractionsRep1_filter.bed'):
                 n_affinity[loop_group]
             )
 
-            # 保持原算法
             nondup_affinity[flag][
                 chromL, CBSstart, CBSend
             ] = 0
 
 
 # ============================================================
-# 4. 计算 affinity_norm
+# 4. Calculate affinity_norm
 # ============================================================
 
 affinity_norm = []
@@ -217,7 +211,7 @@ for i in range(4):
 
 
 # ============================================================
-# 5. 输出
+# 5. output
 # ============================================================
 
 print('n_affinity:')
