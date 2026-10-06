@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # 13review_bootstrap_thresholds_plot_all.py
-# 只根据已有的 CSV 画图，不重新抽样、不重新拟合。
-# 将本文件放在 CTCF_IMP 目录后直接运行：
+# Just make the plot based on the existing CSV, without resampling or refitting.
+# Place this file in the CTCF_IMP directory and run it directly:
 # python 13review_bootstrap_thresholds_plot_all.py
 
 import argparse
@@ -17,31 +17,29 @@ def read_csv(filename):
         return list(csv.DictReader(f))
 
 def get_binning_points(site_file, original_bins, plot_dir, prefix):
-    # site_records 是原程序逐个位点写出的匹配记录；保留重复位点的每一行。
-    # 合并后对所有位点重新取中位数，不能对旧组的中位数再取中位数。
     if not site_file.is_file():
-        raise FileNotFoundError('缺少逐位点文件 %s；无法重建 140/70 bins 的散点' % site_file)
+        raise FileNotFoundError('Missing per-base file %s; can't rebuild scatter plot for 140/70 bins' % site_file)
     n_groups = len(original_bins)
     group_values = [[] for _ in range(n_groups)]
     with open(site_file, newline='') as f:
         for row in csv.DictReader(f):
             group_number = int(row['group_number'])
             if group_number < 1 or group_number > n_groups:
-                raise ValueError('site_records 中出现无效组号：%s' % group_number)
+                raise ValueError('Invalid group number found in site_records：%s' % group_number)
             group_values[group_number - 1].append(float(row['occupancy_percent']))
 
     points_by_merge = {}
     all_points = []
     for merge in (1, 2, 4):
         if n_groups % merge:
-            raise ValueError('组数 %s 不能整除 %s' % (n_groups, merge))
+            raise ValueError('The number of groups %s cannot evenly divide %s' % (n_groups, merge))
         points = []
         for start in range(0, n_groups, merge):
             values = []
             for group_index in range(start, start + merge):
                 values.extend(group_values[group_index])
             if not values:
-                raise ValueError('合并组 %s–%s 无匹配位点' % (start + 1, start + merge))
+                raise ValueError('Merged group %s–%s has no matching sites' % (start + 1, start + merge))
             point = {'n_bins': n_groups // merge,
                      'merge_adjacent_groups': merge,
                      'group_first': start + 1,
@@ -53,14 +51,14 @@ def get_binning_points(site_file, original_bins, plot_dir, prefix):
             all_points.append(point)
         points_by_merge[merge] = points
 
-    # 检查逐位点文件是否与本次拟合的 280 组输入相符，避免混用结果目录。
+    # Check whether the per-site files match the 280 input sets for this fit to avoid mixing up result directories.
     for source, recomputed in zip(original_bins, points_by_merge[1]):
         if not np.isclose(float(source['rank_x']), recomputed['rank_x'],
                           rtol=0, atol=1e-8):
-            raise ValueError('site_records 与 baseline_bins 的组号不一致')
+            raise ValueError('The group numbers of site_records and baseline_bins don't match')
         if not np.isclose(float(source['frequency_pct']),
                           recomputed['frequency_pct'], rtol=0, atol=1e-7):
-            raise ValueError('site_records 与 baseline_bins 的占据频率不一致')
+            raise ValueError('The occupancy frequency of site_records doesn’t match that of baseline_bins')
 
     output_file = plot_dir / ('%s_binning_plot_points.csv' % prefix)
     with open(output_file, 'w', newline='') as f:
@@ -80,7 +78,7 @@ def model_value(x, *param, model):
     if model == 'original_floor_logistic_x':
         Asym, xmid, scal = param
         return 3 + Asym * expit((x - xmid) / scal)
-    raise ValueError('未知模型：' + model)
+    raise ValueError('Unknown model：' + model)
 
 def save_figure(fig, plot_dir, name):
     png = plot_dir / (name + '.png')
@@ -93,10 +91,10 @@ def save_figure(fig, plot_dir, name):
 def draw_plots(result_dir, prefix, bin_dir=None):
     try:
         import matplotlib
-        matplotlib.use('Agg')  # 服务器不需要图形界面
+        matplotlib.use('Agg')  
         import matplotlib.pyplot as plt
     except ImportError:
-        print('WARNING: 没有安装 matplotlib，数值表已生成；安装后可用 --plot-existing 画图',
+        print('WARNING: matplotlib isn't installed, the data table has been generated; once installed, you can use --plot-existing to plot',
               file=sys.stderr)
         return
 
@@ -111,14 +109,14 @@ def draw_plots(result_dir, prefix, bin_dir=None):
     x = np.array([float(row['rank_x']) for row in bins])
     y = np.array([float(row['frequency_pct']) for row in bins])
     grid = np.linspace(max(0.01, x[0]), x[-1], 1200)
-    # 新目录明确区分旧版误用了 280 个散点的图。
+    # The new catalog clearly separates the old version that mistakenly used 280 scatter plots.
     plot_dir = result_dir / ('%s_plots_true_bins' % prefix)
     plot_dir.mkdir(parents=True, exist_ok=True)
     plt.rcParams.update({'font.size': 10, 'svg.fonttype': 'none'})
     binning_points = get_binning_points(result_dir / ('%s_site_records.csv' % prefix),
                                         bins, plot_dir, prefix)
 
-    # 图1：原始280组散点、原模型曲线、两个 affinity 边界和中间拐点
+    # Figure 1: Original 280 scatter points, original model curve, two affinity boundaries, and the middle turning point
     fig, ax = plt.subplots(figsize=(9, 5.5))
     param = [float(value) for value in baseline['params'].split(';')]
     fitted_y = model_value(grid, *param, model=baseline['model'])
@@ -137,7 +135,7 @@ def draw_plots(result_dir, prefix, bin_dir=None):
     save_figure(fig, plot_dir, '%s_original_fit_all' % prefix)
     plt.close(fig)
 
-    # 图2：对应旧 R 图中的拟合曲线及一、二、三阶导数
+    # Figure 2: The fitting curve and the first, second, and third derivatives corresponding to the old R graph
     Asym, xmid, scal = param
     p = 1 / scal
     s = expit((np.log(grid) - xmid) / scal)
@@ -164,7 +162,7 @@ def draw_plots(result_dir, prefix, bin_dir=None):
     save_figure(fig, plot_dir, '%s_derivatives_all' % prefix)
     plt.close(fig)
 
-    # 图3：三种模型，每列上方为全图、下方放大转换区；只用280组的数据比较模型
+    # Figure 3: Three models, with the full image on top of each column and a zoomed-in transformation area below; only 280 sets of data are used to compare the models.
     model_order = ['original_logistic_logx', 'free_floor_logistic_logx',
                    'original_floor_logistic_x']
     model_title = ['Fixed floor 3, logistic(log rank)',
@@ -206,7 +204,7 @@ def draw_plots(result_dir, prefix, bin_dir=None):
     save_figure(fig, plot_dir, '%s_model_sensitivity_all' % prefix)
     plt.close(fig)
 
-    # 图4：沿用 v2 的四个面板：红、蓝、绿分别画；右下角放大曲线差异。
+    # Figure 4: Using four panels from v2: red, blue, and green are drawn respectively; bottom right corner shows enlarged curve differences.
     fig, axes = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
     colors = {1: '#d62728', 2: '#1f77b4', 4: '#008837'}
     titles = {1: '280 bins (original)', 2: '140 bins (merge pairs)',
@@ -260,7 +258,7 @@ def draw_plots(result_dir, prefix, bin_dir=None):
     save_figure(fig, plot_dir, '%s_binning_sensitivity_separate_all' % prefix)
     plt.close(fig)
 
-    # 图5：完整排序范围。每种 binning 一幅子图，右下角放大曲线差值。
+    # Figure 5: Full sorting range. Each binning has its own subplot, with a zoomed-in curve interpolation in the bottom right corner.
     fig, axes = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
     full_curves = {}
     for merge in (1, 2, 4):
@@ -300,7 +298,7 @@ def draw_plots(result_dir, prefix, bin_dir=None):
     save_figure(fig, plot_dir, '%s_binning_sensitivity_fullrange_all' % prefix)
     plt.close(fig)
 
-    # 图6：1000次阈值 affinity 的分布和2.5%/97.5%分位数
+    # Figure 6: Distribution of threshold affinity over 1000 runs and the 2.5%/97.5% percentiles
     if replicate_file.is_file() and ci_file.is_file():
         replicates = read_csv(replicate_file)
         ci_rows = read_csv(ci_file)
@@ -337,26 +335,26 @@ def draw_plots(result_dir, prefix, bin_dir=None):
     print('Plots written to', plot_dir.resolve())
 
 # ============================================================
-# 只读现有 CSV，输出 6 张 PNG、6 张 SVG、1 张散点核查 CSV
+# Read the existing CSV, output 6 PNGs, 6 SVGs, and 1 scatter check CSV
 # ============================================================
 def main():
-    parser = argparse.ArgumentParser(description='根据已保存的拟合和 bootstrap CSV 出图；不重新计算阈值')
+    parser = argparse.ArgumentParser(description='Plot from the saved fit and bootstrap CSV; don’t recalculate the thresholds')
     parser.add_argument('--work-dir', type=Path, default=Path(__file__).resolve().parent)
     parser.add_argument('--outdir', type=Path, default=Path('13review_bootstrap_results_rerun'))
     parser.add_argument('--prefix', default='13review')
     parser.add_argument('--plot-existing', action='store_true',
-                        help='兼容旧命令：该脚本始终只读取现有 CSV 出图')
+                        help='Backward compatible: This script always only reads existing CSV files for plotting')
     args = parser.parse_args()
 
     work_dir = args.work_dir.resolve()
     result_dir = args.outdir if args.outdir.is_absolute() else work_dir / args.outdir
     if not result_dir.is_dir():
-        raise FileNotFoundError('找不到结果目录：%s' % result_dir)
+        raise FileNotFoundError('Can't find the results folder：%s' % result_dir)
     for name in ('baseline_bins', 'baseline_fit', 'sensitivity',
                  'bootstrap_replicates', 'bootstrap_ci', 'site_records'):
         filename = result_dir / ('%s_%s.csv' % (args.prefix, name))
         if not filename.is_file():
-            raise FileNotFoundError('缺少出图所需的 CSV：%s' % filename)
+            raise FileNotFoundError('Missing the CSV needed for the output：%s' % filename)
     draw_plots(result_dir, args.prefix)
 
 
