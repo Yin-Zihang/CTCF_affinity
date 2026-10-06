@@ -15,7 +15,7 @@ def aftCounter(affinity, aftlist):
 
 
 # ============================================================
-# 1. 读取 CTCF sites
+# 1. read CTCF sites
 # ============================================================
 
 ctcf_sites = {}
@@ -56,7 +56,7 @@ for eachLine in open(
 
 
 # ============================================================
-# 2. Hi-C loop strength 分组阈值
+# 2. Hi-C loop strength group threshold
 # ============================================================
 
 tloopStrength = [
@@ -68,11 +68,11 @@ tloopStrength = [
 
 
 # ============================================================
-# 3. 初始化
+# 3. initialize
 # ============================================================
 
-# 5 个 loop strength groups
-# 每组依次统计 strong / middle / weak
+# 5 loop strength groups
+# calculate by group: strong / middle / weak
 n_affinity = [
     [0, 0, 0],
     [0, 0, 0],
@@ -81,19 +81,18 @@ n_affinity = [
     [0, 0, 0]
 ]
 
-# 记录每个 affinity group 中参与过 loop 的 unique CBS
-a1 = {}
+#Record the unique CBS that have participated in the loop in each affinity group
 a2 = {}
 a3 = {}
 
 nondup_affinity = [a1, a2, a3]
 
-# 每个 loop strength group 的 loop 数
+# The number of loops in each loop strength group
 loopS = [0, 0, 0, 0, 0]
 
 
 # ============================================================
-# 4. 扫描 Hi-C loops
+# 4. scan Hi-C loops
 # ============================================================
 
 for eachLine in open('K562_loop_5k_filter.txt'):
@@ -111,7 +110,7 @@ for eachLine in open('K562_loop_5k_filter.txt'):
     loopstrength = float(each[6])
 
     # --------------------------------------------------------
-    # 根据原代码划分 5 个 strength groups
+    # Divide into 5 strength groups based on the original code
     # --------------------------------------------------------
 
     if loopstrength <= tloopStrength[0]:
@@ -125,8 +124,7 @@ for eachLine in open('K562_loop_5k_filter.txt'):
     else:
         strength = 4
 
-    # 保持原代码逻辑：
-    # 先统计 loopS，再过滤跨染色体 loop
+    # First count the loops, then filter out the inter-chromosomal loops
     loopS[strength] += 1
 
     if chromR != chromL:
@@ -134,8 +132,8 @@ for eachLine in open('K562_loop_5k_filter.txt'):
 
 
     # ========================================================
-    # 左 anchor
-    # 只保留 + strand CBS
+    # left anchor
+    # keep only + strand CBS
     # ========================================================
 
     for i in range(endL - startL):
@@ -149,7 +147,7 @@ for eachLine in open('K562_loop_5k_filter.txt'):
             score = ctcf_sites[key][2]
             direction = ctcf_sites[key][4]
 
-            # 原代码：左 anchor 排除 -
+            
             if direction == '-':
                 continue
 
@@ -173,8 +171,8 @@ for eachLine in open('K562_loop_5k_filter.txt'):
 
 
     # ========================================================
-    # 右 anchor
-    # 只保留 - strand CBS
+    # right anchor
+    # keep only - strand CBS
     # ========================================================
 
     for i in range(endR - startR):
@@ -205,16 +203,13 @@ for eachLine in open('K562_loop_5k_filter.txt'):
                 n_affinity[strength]
             )
 
-            # 保持原代码写法
-            # 因为已经过滤 chromR != chromL，
-            # 所以这里 chromL == chromR
             nondup_affinity[flag][
                 chromL, CBSstart, CBSend
             ] = 0
 
 
 # ============================================================
-# 5. 计算 affinity_norm
+# 5.  affinity_norm
 # ============================================================
 
 affinity_norm = []
@@ -237,7 +232,7 @@ for i in range(5):
 
 
 # ============================================================
-# 6. 输出
+# 6. output
 # ============================================================
 
 print('n_affinity:')
