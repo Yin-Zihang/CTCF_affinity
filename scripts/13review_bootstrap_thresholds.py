@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # 13review_bootstrap_thresholds.py
-# 用法（单行）：
 # python 13review_bootstrap_thresholds.py --count-file 12_count_dup_cell_new.txt --n-cells 61 --bootstrap 1000
-# 已有1000次拟合只需改正 affinity 映射时：
 # python 13review_bootstrap_thresholds.py --remap-existing
 
 import argparse
@@ -17,7 +15,7 @@ from scipy.special import expit, logit
 
 
 # ============================================================
-# 0. 参数、输出列
+# 0. parameters & output
 # ============================================================
 parser = argparse.ArgumentParser()
 parser.add_argument('--work-dir', type=Path, default=Path(__file__).resolve().parent)
@@ -33,7 +31,7 @@ parser.add_argument('--seed', type=int, default=20260927)
 parser.add_argument('--rank-to-line-scale', type=int, default=10000)
 parser.add_argument('--remap-existing', action='store_true')
 parser.add_argument('--plot-existing', action='store_true',
-                    help='仅根据已生成的 CSV 画图，不重新读原始数据或重新拟合')
+                    help='Plot the graph just based on the generated CSV, without rereading the original data or refitting.')
 parser.add_argument('--diagnose-counts-only', action='store_true')
 parser.add_argument('--skip-site-table', action='store_true')
 parser.add_argument('--expected-low', type=float, default=2.25)
@@ -66,7 +64,7 @@ def read_csv(filename):
 
 
 # ============================================================
-# 1. 和原代码一致的序列方向处理
+# 1. Sequence direction handling consistent with the original code
 # ============================================================
 def reverse(seq):
     new = ''
@@ -81,16 +79,15 @@ def reverse(seq):
             new += 'G'
         elif dna == 'G':
             new += 'C'
-        # 原代码遇到 N 时不追加碱基；记录在诊断表中
     return new
 
 
 # ============================================================
-# 2. 每组计算一个点：横轴为组号/10，纵轴为占据次数中位数/细胞数
+# 2. Calculate a point for each group: the x-axis is the group number divided by 10, and the y-axis is the median occupancy divided by the number of cells
 # ============================================================
 def make_group_table(group_count, group_emsa, n_cells, merge=1):
     if len(group_count) % merge != 0:
-        raise ValueError('分组数不能被合并数整除')
+        raise ValueError('The number of groups can't be evenly divided by the number to merge')
     table = []
     for start in range(0, len(group_count), merge):
         all_count = []
@@ -114,7 +111,7 @@ def make_group_table(group_count, group_emsa, n_cells, merge=1):
 
 
 # ============================================================
-# 3. 拟合原始 R 公式；scal 为负数时曲线随排序下降
+# 3. Fitting; when scal is negative, the curve decreases with the ranking
 # ============================================================
 def model_value(x, *param, model):
     if model == 'original_logistic_logx':
@@ -126,14 +123,14 @@ def model_value(x, *param, model):
     if model == 'original_floor_logistic_x':
         Asym, xmid, scal = param
         return 3 + Asym * expit((x - xmid) / scal)
-    raise ValueError('未知模型：' + model)
+    raise ValueError('unknown model：' + model)
 
 
 def fit_model(table, model):
     x = np.array([row['rank_x'] for row in table], dtype=float)
     y = np.array([row['frequency_pct'] for row in table], dtype=float)
     if np.any(x <= 0) or np.any(~np.isfinite(y)):
-        raise ValueError('排序必须大于0，占据频率必须是有限值')
+        raise ValueError('The order must be greater than 0, and the occupancy frequency must be a finite value')
 
     Asym0 = max(1.0, float(max(y) - 3))
     half_index = int(np.argmin(np.abs(y - (3 + Asym0 / 2))))
@@ -171,15 +168,15 @@ def fit_model(table, model):
         except (RuntimeError, ValueError, OverflowError):
             continue
     if best_param is None:
-        raise RuntimeError('正向和反向拟合均未成功：' + model)
+        raise RuntimeError('Both forward and backward fitting didn’t work：' + model)
     tss = float(np.sum((y - np.mean(y)) ** 2))
     r2 = 1 - best_rss / tss if tss > 0 else float('nan')
     return best_param, best_rss, r2
 
 
 # ============================================================
-# 4. 求横轴排序上的三个位置：左 f'''=0，中 f''=0，右 f'''=0
-#    阈值只取左右两个位置；中间拐点作为参考输出
+# 4. Find the three positions on the horizontal axis: left f'''=0, middle f''=0, right f'''=0
+#    The threshold only takes the two positions on the left and right; the middle inflection point is used as a reference output.
 # ============================================================
 def get_three_ranks(param, model):
     if model == 'free_floor_logistic_logx':
@@ -198,13 +195,13 @@ def get_three_ranks(param, model):
 
     p = 1 / scal
     if abs(p) <= 1:
-        raise ValueError('scal 对应的二阶导数没有有效零点')
+        raise ValueError('The second derivative of scal doesn't have any valid zeros')
     center = (p - 1) / (2 * p)
     delta = math.sqrt(3 * (p * p - 1)) / (6 * abs(p))
     s1 = center - delta
     s3 = center + delta
     if s1 <= 0 or s3 >= 1:
-        raise ValueError('三阶导数的零点超出有效范围')
+        raise ValueError('The zero of the third derivative is out of the valid range')
 
     root1 = math.exp(xmid + scal * logit(s1))
     root3 = math.exp(xmid + scal * logit(s3))
@@ -213,25 +210,25 @@ def get_three_ranks(param, model):
 
 
 # ============================================================
-# 5. 按完整排序文件的行号查 affinity
-#    例：x=5.0150 -> 行号 round(5.0150*10000)=50150 -> 第5列=2.2505
-#    文件第1行是表头；行号指物理行号，不取相邻组中位数
+# 5. Check affinity by the line number of the fully sorted file
+#    Example: x=5.0150 -> Line number round(5.0150*10000)=50150 -> Column 5=2.2505
+#    The first line of the file is the header; line numbers refer to physical lines, not the median of adjacent groups.
 # ============================================================
 def find_affinity(rank, rank_rows, scale):
     line_number = math.floor(rank * scale + 0.5)
     if line_number not in rank_rows:
-        raise ValueError('排序 %.8f 对应第 %s 行，但 affinity 文件无该行' %
+        raise ValueError('Rank %.8f corresponds to line %s, but the affinity file doesn't have that line' %
                          (rank, line_number))
     group_id, affinity = rank_rows[line_number]
     expected_group = math.ceil(rank * 10)
     if abs(int(group_id) - expected_group) > 1:
-        raise ValueError('第 %s 行的组号 %s 和排序 %.8f 不一致，请核查排序文件' %
+        raise ValueError('The group number %s and order %.8f on line %s do not match, please check the order file' %
                          (line_number, group_id, rank))
     return affinity, line_number, group_id
 
 
 def add_affinity_columns(row, rank_rows, scale):
-    # row 已有三个排序位置；将对应文件行号和 affinity 原样写入结果
+    # The row already has three sort positions; write the corresponding file line numbers and affinity into the results as is
     left_rank = float(row['left_rank'])
     middle_rank = float(row['inflection_rank'])
     right_rank = float(row['right_rank'])
@@ -270,7 +267,7 @@ def fit_one_table(table, model, rank_rows, scale):
     param, rss, r2 = fit_model(table, model)
     left, middle, right = get_three_ranks(param, model)
     if left < table[0]['rank_x'] or right > table[-1]['rank_x']:
-        raise ValueError('阈值超出了拟合数据的排序范围')
+        raise ValueError('The threshold is beyond the range of the fitted data')
     row = {
         'model': model, 'n_bins': len(table),
         'rss': rss, 'r2': r2,
@@ -281,7 +278,7 @@ def fit_one_table(table, model, rank_rows, scale):
 
 
 # ============================================================
-# 6. 从1000次结果计算 percentile 95% CI
+# 6. Calculate the 95% CI from 1000 results
 # ============================================================
 def write_ci(filename, baseline, bootstrap_rows, bootstrap_total):
     success = []
@@ -289,7 +286,7 @@ def write_ci(filename, baseline, bootstrap_rows, bootstrap_total):
         if str(row['success']) == '1':
             success.append(row)
     if len(success) < max(20, bootstrap_total * 0.8):
-        raise RuntimeError('成功拟合 %s/%s，未达到预设数量' %
+        raise RuntimeError('Successfully fitted %s/%s, did not reach the preset number' %
                            (len(success), bootstrap_total))
     summary = []
     for name in ('low_rank', 'high_rank', 'low_emsa', 'high_emsa'):
@@ -312,52 +309,52 @@ def write_ci(filename, baseline, bootstrap_rows, bootstrap_total):
 
 
 # ============================================================
-# 7. 画图：所有曲线都使用表中已经保存的拟合参数
-#    plot-existing 只读 CSV；不会重新抽样或拟合
+# 7. Plotting: All curves use the fitting parameters already saved in the table
+#    plot-existing read-only CSV; won’t resample or refit
 # ============================================================
 def save_figure(fig, plot_dir, name):
     fig.savefig(plot_dir / (name + '.png'), dpi=300, bbox_inches='tight')
     fig.savefig(plot_dir / (name + '.svg'), bbox_inches='tight')
 
 def read_plot_binning_points(site_file, original_bins):
-    # 按每个位点的占据频率合并相邻组；不是把旧的组中位数再次取中位数。
+    # Merge adjacent groups based on the occupancy frequency of each site; don't take the median of the old group and then median it again.
     n_groups = len(original_bins)
     values_by_group = [[] for _ in range(n_groups)]
     with open(site_file, newline='') as f:
         for row in csv.DictReader(f):
             group_number = int(row['group_number'])
             if group_number < 1 or group_number > n_groups:
-                raise ValueError('site_records 中出现无效组号：%s' % group_number)
+                raise ValueError('Invalid group number found in site_records：%s' % group_number)
             values_by_group[group_number - 1].append(float(row['occupancy_percent']))
     points_by_merge = {}
     for merge in (1, 2, 4):
         if n_groups % merge:
-            raise ValueError('组数 %s 不能整除 %s' % (n_groups, merge))
+            raise ValueError('The number of groups %s cannot evenly divide %s' % (n_groups, merge))
         points = []
         for start in range(0, n_groups, merge):
             values = []
             for i in range(start, start + merge):
                 values.extend(values_by_group[i])
             if not values:
-                raise ValueError('合并组 %s–%s 无匹配位点' % (start + 1, start + merge))
+                raise ValueError('Merged group %s–%s has no matching sites' % (start + 1, start + merge))
             points.append(((2 * start + merge + 1) / 20,
                            float(np.median(values))))
         points_by_merge[merge] = points
     for row, point in zip(original_bins, points_by_merge[1]):
         if not np.isclose(float(row['rank_x']), point[0], rtol=0, atol=1e-8):
-            raise ValueError('site_records 与 baseline_bins 的排序不一致')
+            raise ValueError('The order of site_records doesn't match baseline_bins')
         if not np.isclose(float(row['frequency_pct']), point[1], rtol=0, atol=1e-7):
-            raise ValueError('site_records 与 baseline_bins 的占据频率不一致')
+            raise ValueError('The occupancy frequency of site_records doesn’t match that of baseline_bins')
     return points_by_merge
 
 
 def draw_plots(result_dir, prefix, bin_dir=None):
     try:
         import matplotlib
-        matplotlib.use('Agg')  # 服务器不需要图形界面
+        matplotlib.use('Agg') 
         import matplotlib.pyplot as plt
     except ImportError:
-        print('WARNING: 没有安装 matplotlib，数值表已生成；安装后可用 --plot-existing 画图',
+        print('WARNING: matplotlib isn't installed, the data table has been generated; once installed, you can use --plot-existing to plot',
               file=sys.stderr)
         return
 
@@ -376,14 +373,14 @@ def draw_plots(result_dir, prefix, bin_dir=None):
     if site_file.is_file():
         binning_points = read_plot_binning_points(site_file, bins)
     else:
-        print('WARNING: 缺少 %s，binning 图只画拟合曲线，不画错误的散点' % site_file,
+        print('WARNING:Missing %s, the binning chart will only show the fitted curve, not the erroneous scatter points' % site_file,
               file=sys.stderr)
     grid = np.linspace(max(0.01, x[0]), x[-1], 1200)
     plot_dir = result_dir / ('%s_plots' % prefix)
     plot_dir.mkdir(parents=True, exist_ok=True)
     plt.rcParams.update({'font.size': 10, 'svg.fonttype': 'none'})
 
-    # 图1：原始280组散点、原模型曲线、两个 affinity 边界和中间拐点
+    # Figure 1: Original 280 scatter points, original model curve, two affinity boundaries, and the middle turning point
     fig, ax = plt.subplots(figsize=(9, 5.5))
     param = [float(value) for value in baseline['params'].split(';')]
     fitted_y = model_value(grid, *param, model=baseline['model'])
@@ -402,7 +399,7 @@ def draw_plots(result_dir, prefix, bin_dir=None):
     save_figure(fig, plot_dir, '%s_original_fit' % prefix)
     plt.close(fig)
 
-    # 图2：对应旧 R 图中的拟合曲线及一、二、三阶导数
+    # Figure 2: The fitting curve and the first, second, and third derivatives 
     Asym, xmid, scal = param
     p = 1 / scal
     s = expit((np.log(grid) - xmid) / scal)
@@ -429,7 +426,7 @@ def draw_plots(result_dir, prefix, bin_dir=None):
     save_figure(fig, plot_dir, '%s_derivatives' % prefix)
     plt.close(fig)
 
-    # 图3：三种模型，每列上方为全图、下方放大转换区；只用280组的数据比较模型
+    # Figure 3: Three models, with the full image on top of each column and a zoomed-in transformation area below; only 280 sets of data are used to compare the models.
     model_order = ['original_logistic_logx', 'free_floor_logistic_logx',
                    'original_floor_logistic_x']
     model_title = ['Fixed floor 3, logistic(log rank)',
@@ -471,8 +468,8 @@ def draw_plots(result_dir, prefix, bin_dir=None):
     save_figure(fig, plot_dir, '%s_model_sensitivity' % prefix)
     plt.close(fig)
 
-    # 图4：三种分组的曲线非常接近。左/中用不同线型和错开的标记显示原值；
-    #      右图显示相对280组曲线的差值，放大小差异，不改变拟合结果。
+    # Figure 4: The original values are shown on the left/middle with different line styles and staggered markers.；
+    #      The right picture shows the differences relative to the 280 curves, zooming in on small differences without changing the fitting results.
     fig, axes = plt.subplots(1, 3, figsize=(17, 5.2))
     colors = {1: '#d62728', 2: '#1f77b4', 4: '#008837'}
     line_styles = {1: '-', 2: '--', 4: ':'}
@@ -497,7 +494,7 @@ def draw_plots(result_dir, prefix, bin_dir=None):
                 point_y = [point[1] for point in binning_points[merge]]
                 ax.scatter(point_x, point_y, s=9, color=colors[merge],
                            marker=markers[merge], alpha=0.30, zorder=1)
-        # 先画绿色、再画蓝色、最后画红色；不同 x 位置的标记避免彼此遮住。
+        
         for merge in (4, 2, 1):
             if merge not in curves:
                 continue
@@ -513,7 +510,7 @@ def draw_plots(result_dir, prefix, bin_dir=None):
     axes[1].set_title('Threshold area (rank 0–9, enlarged x axis)')
     axes[1].legend(loc='upper right', frameon=False, fontsize=8)
 
-    # 280组曲线定义为0；蓝/绿两条线是频率差，单位为百分点。
+    # The 280 curves are defined as 0; the blue/green lines represent the frequency difference, in percentage points.
     ax = axes[2]
     if 1 in curves:
         for merge in (4, 2, 1):
@@ -538,7 +535,7 @@ def draw_plots(result_dir, prefix, bin_dir=None):
     save_figure(fig, plot_dir, '%s_binning_sensitivity' % prefix)
     plt.close(fig)
 
-    # 图5：1000次阈值 affinity 的分布和2.5%/97.5%分位数
+    # Figure 5: Distribution of threshold affinity over 1000 runs and the 2.5%/97.5% percentiles
     if replicate_file.is_file() and ci_file.is_file():
         replicates = read_csv(replicate_file)
         ci_rows = read_csv(ci_file)
@@ -576,7 +573,7 @@ def draw_plots(result_dir, prefix, bin_dir=None):
 
 
 # ============================================================
-# 8. 已做完 bootstrap 时，只重查 affinity，不再拟合
+# 8. Once bootstrap is done, just recheck affinity, no need to fit again
 # ============================================================
 def remap_existing(args, rank_rows, score_file):
     corrected_dir = args.outdir / 'rank_lookup'
@@ -588,7 +585,7 @@ def remap_existing(args, rank_rows, score_file):
         old_file = args.outdir / ('%s_%s.csv' % (args.prefix, name))
         data = read_csv(old_file)
         if len(data) == 0:
-            raise ValueError('结果文件为空：%s' % old_file)
+            raise ValueError('The result file is empty：%s' % old_file)
 
         for row in data:
             if row.get('success', '1') == '1':
@@ -645,7 +642,7 @@ def main():
     if not args.outdir.is_absolute():
         args.outdir = args.work_dir / args.outdir
     if args.outdir.resolve() == args.work_dir:
-        raise ValueError('结果请放在原目录下面的子文件夹')
+        raise ValueError('Please put the results in a subfolder under the original directory')
     args.outdir.mkdir(parents=True, exist_ok=True)
     if args.score_file is None:
         args.score_file = args.group_dir / 'final_split_to_270_groups.tsv'
@@ -656,18 +653,18 @@ def main():
         draw_plots(args.outdir, args.prefix)
         return
 
-    # 先读 affinity 文件。每个物理行号作为 key；重复序列的 affinity 沿用原代码后者覆盖前者。
+    # First, read the affinity file. Use each physical line number as the key; for repeated sequences, the affinity from the original code is used, with the latter overwriting the former.
     score_by_seq = {}
     rank_rows = {}
     score_conflicts = 0
     for line_number, eachLine in enumerate(open(args.score_file), 1):
         if line_number == 1:
-            continue  # 表头
+            continue  
         if not eachLine.strip():
             continue
         each = eachLine.split()
         if len(each) < 5:
-            raise ValueError('%s:%s affinity 表列数不足' % (args.score_file, line_number))
+            raise ValueError('%s:%s affinity table has insufficient entries' % (args.score_file, line_number))
         seq = each[2]
         affinity = float(each[4])
         rank_rows[line_number] = (each[0], affinity)
@@ -680,7 +677,7 @@ def main():
         return
 
     # ========================================================
-    # 9. 读取占据次数，和原代码一样处理 41 bp、负链、重复 key
+    # 9. Read the occupancy count, handle 41 bp, negative strand, and duplicate keys just like the original code
     # ========================================================
     count_by_seq = {}
     audit = {'count_input_rows': 0, 'count_duplicate_rows': 0,
@@ -698,12 +695,12 @@ def main():
                 continue
             each = eachLine.split()
             if len(each) < 6:
-                raise ValueError('%s:%s 占据输入列数不足' % (args.count_file, line_number))
+                raise ValueError('%s:%s Not enough input columns' % (args.count_file, line_number))
             token = each[3].split('_')
             if len(token) < 2:
-                raise ValueError('%s:%s 序列字段缺少下划线' % (args.count_file, line_number))
+                raise ValueError('%s:%s sequence field is missing an underscore' % (args.count_file, line_number))
             length = token[0]
-            seq = token[1]  # 末尾的 _affinity 不是序列
+            seq = token[1]  
             count = int(each[4])
             orient = each[5]
             if length == '41':
@@ -727,16 +724,16 @@ def main():
                 audit['count_non_acgt_bases_dropped_on_reverse'] += len(invalid)
                 seq = reverse(seq)
             elif orient != '+':
-                raise ValueError('%s:%s 未知链方向 %s' % (args.count_file, line_number, orient))
+                raise ValueError('%s:%s Unknown chain direction %s' % (args.count_file, line_number, orient))
             if count < 0 or count > args.n_cells:
-                raise ValueError('%s:%s count=%s 超出范围' % (args.count_file, line_number, count))
+                raise ValueError('%s:%s count=%s out of range' % (args.count_file, line_number, count))
 
             audit['count_input_rows'] += 1
             if seq in count_by_seq:
                 audit['count_duplicate_rows'] += 1
                 if count_by_seq[seq] != count:
                     audit['count_conflicting_overwrites'] += 1
-            count_by_seq[seq] = count  # 和原代码一致：最后一次覆盖
+            count_by_seq[seq] = count  
 
     audit['count_unique_sequences'] = len(count_by_seq)
     audit['count_explicit_zeros'] = sum(value == 0 for value in count_by_seq.values())
@@ -753,7 +750,7 @@ def main():
         return
 
     # ========================================================
-    # 10. 和原代码一样，逐组读 41/42 文件；不在占据文件中的位点跳过
+    # 10. Read the 41/42 files group by group; skip positions that aren’t in the files.
     # ========================================================
     group_count = []
     group_emsa = []
@@ -783,7 +780,7 @@ def main():
                         missing_count += 1
                         continue
                     if seq not in score_by_seq:
-                        raise ValueError('%s 的序列 %s 未找到 affinity' % (group_file, seq))
+                        raise ValueError('Affinity not found for sequence %s of %s' % (group_file, seq))
                     if seq in seen:
                         repeated_rows += 1
                     seen.add(seq)
@@ -795,7 +792,7 @@ def main():
                         site_writer.writerow([seq, i, i / 10, affinity,
                                               count, count * 100 / args.n_cells, length])
             if len(this_count) == 0:
-                raise ValueError('第 %s 组没有匹配的占据记录' % i)
+                raise ValueError('No matching occupancy records for group %s' % i)
             group_count.append(np.asarray(this_count, dtype=np.int16))
             group_emsa.append(np.asarray(this_emsa, dtype=float))
     finally:
@@ -834,7 +831,7 @@ def main():
               file=sys.stderr)
 
     # ========================================================
-    # 11. 原始280组拟合；检查 x=5.0150 是否取到文件第50150行
+    # 11. Fitted the original 280 sets; check if x=5.0150 corresponds to line 50150 in the file
     # ========================================================
     original_table = make_group_table(group_count, group_emsa, args.n_cells)
     save_csv(args.outdir / ('%s_baseline_bins.csv' % args.prefix),
@@ -866,7 +863,7 @@ def main():
         print('WARNING:', warning, file=sys.stderr)
 
     # ========================================================
-    # 12. 敏感性：相邻组合并 1/2/4 组；每种分组拟合三种曲线
+    # 12. Sensitivity: Combine adjacent groups 1/2/4; fit three curves for each grouping
     # ========================================================
     sensitivity = []
     for merge in (1, 2, 4):
@@ -888,8 +885,8 @@ def main():
              ['merge_adjacent_groups', 'success', 'error'] + FIT_COLUMNS, sensitivity)
 
     # ========================================================
-    # 13. bootstrap：每组有放回抽同样多的 CBS，1000次各自计算中位数并拟合
-    #     每次得到排序边界后，都从原始排序文件查 affinity
+    # 13. Bootstrap: For each group, draw the same number of CBS with replacement, calculate the median 1000 times, and fit each time.
+    #     Every time you get the sorting boundary, check the affinity from the original sorted file
     # ========================================================
     if args.bootstrap > 0:
         rng = np.random.default_rng(args.seed)
