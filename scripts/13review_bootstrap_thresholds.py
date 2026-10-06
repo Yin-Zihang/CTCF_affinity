@@ -103,7 +103,7 @@ def make_group_table(group_count, group_emsa, n_cells, merge=1):
             'group_last': last_group,
             'rank_x': (first_group + last_group) / 20,
             'n_records': len(all_count),
-            'median_emsa': float(np.median(all_emsa)),  # 仅供查看；不用于阈值映射
+            'median_emsa': float(np.median(all_emsa)),  
             'median_count': median_count,
             'frequency_pct': median_count * 100 / n_cells
         })
