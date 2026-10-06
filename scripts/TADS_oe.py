@@ -15,7 +15,7 @@ def aftCounter(affinity, aftlist):
 
 
 # ============================================================
-# 1. 读取全部 CBS，并统计全体 strong / middle / weak 数量
+# 1. Read all CBS and count the total number of strong, middle, and weak
 # ============================================================
 
 all_affinity = [0, 0, 0]
@@ -37,14 +37,14 @@ for eachLine in open('../12w_hg18_motif.csv'):
 
         score = float(each[6])
 
-        # 保持原代码：
-        # 所有 CBS 都计入全体 affinity background
+      
+        # All CBS are counted into the overall affinity background
         all_affinity = aftCounter(
             score,
             all_affinity
         )
 
-        # 保持原来的有效序列筛选
+        # Keep the original valid sequence selection
         if re.search('None', each[5]) is None:
 
             ctcf_sites[(chrom, center)] = score
@@ -54,10 +54,10 @@ for eachLine in open('../12w_hg18_motif.csv'):
 
 
 # ============================================================
-# 2. 搜索 TAD boundary 附近的 CBS
+# 2. Search for CBS near the TAD boundary
 # ============================================================
 
-# 原代码使用 50 kb
+
 BOUNDARY_SIZE = 25000
 
 n_affinity = [0, 0, 0]
@@ -75,9 +75,9 @@ for eachLine in open(
 
 
     # --------------------------------------------------------
-    # 左侧 TAD boundary
-    # 从 start 向 TAD 内部扫描 50 kb
-    # [start, start + 50 kb)
+    # left TAD boundary
+    # Scan 25 kb into the TAD from the start
+    # [start, start + 25 kb)
     # --------------------------------------------------------
 
     for i in range(BOUNDARY_SIZE):
@@ -95,9 +95,9 @@ for eachLine in open(
 
 
     # --------------------------------------------------------
-    # 右侧 TAD boundary
-    # 从 end 向 TAD 内部扫描 50 kb
-    # (end - 50 kb, end]
+    # right TAD boundary
+    # Scan 50 kb from the end into the TAD
+    # (end - 25 kb, end]
     # --------------------------------------------------------
 
     for i in range(BOUNDARY_SIZE):
@@ -115,7 +115,7 @@ for eachLine in open(
 
 
 # ============================================================
-# 3. 计算 observed proportion
+# 3. Calculate observed proportion
 # ============================================================
 
 observed = [
@@ -125,7 +125,7 @@ observed = [
 
 
 # ============================================================
-# 4. 计算总体 expected proportion
+# 4. Calculate the overall expected proportion
 # ============================================================
 
 used_total = sum(n_affinity)
@@ -135,7 +135,7 @@ expected = used_total / all_total
 
 
 # ============================================================
-# 5. 计算 O/E
+# 5. Calculate O/E
 # ============================================================
 
 oe = [
@@ -145,7 +145,7 @@ oe = [
 
 
 # ============================================================
-# 6. 输出
+# 6. output
 # ============================================================
 
 print('n_affinity:')
