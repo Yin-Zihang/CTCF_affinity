@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 
 parser = argparse.ArgumentParser(description='Summarize affinity classes in CTCF ChIA-PET interactions.')
-parser.add_argument('--sites-file', default='/run/media/guoya/diska/CTCF_IMP/11_split_to_12_groups/fimo/final_split_to_12_groups_motif.csv')
+parser.add_argument('--sites-file', default='final_split_to_12_groups_motif.csv')
 parser.add_argument('--loops-file', default='wgEncodeGisChiaPetK562CtcfInteractionsRep1_filter.bed')
 parser.add_argument('--output', default='ChIApet_affinity_normalization.tsv',
                     help='Output TSV path; relative paths use the current working directory.')
