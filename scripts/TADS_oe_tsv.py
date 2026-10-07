@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 
 parser = argparse.ArgumentParser(description='Calculate CTCF affinity-class enrichment at TAD boundaries.')
-parser.add_argument('--sites-file', default='../12w_hg18_motif.csv')
+parser.add_argument('--sites-file', default='12w_hg18_motif.csv')
 parser.add_argument('--domains-file', default='41586_2012_BFnature11082_MOESM330_ESM_hg18-domain_IMR90.csv')
 parser.add_argument('--output', default='TAD_enrichment.tsv',
                     help='Output TSV path; relative paths use the current working directory.')
