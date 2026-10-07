@@ -1,0 +1,4 @@
+loop_strength_group	affinity_class	n_cbs_occurrences	n_unique_cbs_across_all_groups	n_loops	affinity_norm_per_1000_loops
+5	strong	786	3359	668	0.35029672717678667
+5	middle	348	1972	668	0.2641775272983445
+5	weak	329	2391	668	0.20598702219150158
