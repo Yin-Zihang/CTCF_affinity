@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 
 parser = argparse.ArgumentParser(description='Summarize affinity classes in CTCF Hi-C loops.')
-parser.add_argument('--sites-file', default='/run/media/guoya/diska/CTCF_IMP/11_split_to_12_groups/fimo/final_split_to_12_groups_motif.csv')
+parser.add_argument('--sites-file', default='final_split_to_12_groups_motif.csv')
 parser.add_argument('--loops-file', default='K562_loop_5k_filter.txt')
 parser.add_argument('--output', default='HiCLoop_affinity_normalization.tsv',
                     help='Output TSV path; relative paths use the current working directory.')
