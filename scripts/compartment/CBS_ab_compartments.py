@@ -7,7 +7,7 @@ import importlib
 import os
 from collections import Counter
 
-common = importlib.import_module('13review_compartment_common')
+common = importlib.import_module('CBS_compartment_common')
 
 
 def main():
